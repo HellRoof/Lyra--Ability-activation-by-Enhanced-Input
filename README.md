@@ -22,20 +22,19 @@ You will also need knowledge of GAS and Enhanced Input System to understand this
 + The project uploaded with LFS
 
 ## Document's content
-+ [Introduction](introduction)
-+ [About the project](about-the-project)
-+ [Document's content](document's-content)
-+ [Tags](tags)
-+ [Config files](config-files)
-+ [Ability set](ability-set)
-+ [Gameplay ability](gameplay-ability)
-+ [Ability system component](Ability-system-component)
-+ [Game mode and player state](Game-mode-and-player-state)
-+ [Character](character)
-+ [Input player component](input-player-component)
-+ [Input processing component](input-processing-component)
-+ [Player controller](player-controller)
-+ [Introduction](introduction)
++ [Introduction](#introduction)
++ [About the project](#about-the-project)
++ [Document's content](#document's-content)
++ [Tags](#tags)
++ [Config files](#config-files)
++ [Ability set](#ability-set)
++ [Gameplay ability](#gameplay-ability)
++ [Ability system component](#Ability-system-component)
++ [Game mode and player state](#Game-mode-and-player-state)
++ [Character](#character)
++ [Input player component](#input-player-component)
++ [Input processing component](#input-processing-component)
++ [Player controller](#player-controller)
 
 ## Tags
 First of all, we need to declare tags that will be used for inputs.  
@@ -396,8 +395,166 @@ Once the C++ progress input player component is created, we need to overwrite en
 ![DefaultInputComponentClass](https://github.com/HellRoof/Lyra--Ability-activation-by-Enhanced-Input/blob/main/Documentation%20images/Default%20Input%20component%20class.png)
 
 ## Input processing component
+The input processing component is inherited from the actor component. 
+It is the analog of the hero component from ***Lyra***.  
+It is responsible for processing pressed inputs that will trigger abilities with related tags or actions with bound functions.  
+***DefaultInputMappings*** Array of character's default input mappings.  
+***InputConfig*** The config we created, which we filled in earlier.  
+***Input_AbilityInputTagPressed*** This function calls our ASC and calls the previously created AbilityInputTagPressed function.  
+***Input_AbilityInputTagReleased*** This function calls our ASC and calls the previously created AbilityInputTagReleased function.  
+***Input_Move*** and ***Input_Look_Mouse*** Standard movement character's function.  
+(They are used in the project for an example of a combination of enhanced input system with default movement)
+This is done in the ***ProgressInputProcessingComponent.h*** file. 
+```
+protected:
+	void Input_AbilityInputTagPressed(FGameplayTag InputTag);
+	void Input_AbilityInputTagReleased(FGameplayTag InputTag);
+
+	void Input_Move(const FInputActionValue& InputActionValue);
+	void Input_Look_Mouse(const FInputActionValue& InputActionValue);
+
+public:
+	virtual void InitializePlayerInput(UInputComponent* PlayerInputComponent);
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TArray<TObjectPtr<UInputMappingContext>> DefaultInputMappings;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UProgressInputConfigData> InputConfig;
+```
+
+<br>
+
+```
+void UProgressInputProcessingComponent::Input_AbilityInputTagPressed(FGameplayTag InputTag)
+{
+	if (AProgressCharacter* Character = GetOwner<AProgressCharacter>())
+	{
+		if (AProgressPlayerState* CharacterPS = Character->GetPlayerState<AProgressPlayerState>())
+		{
+			if (UProgressAbilitySystemComponent* ProgressASC = CharacterPS->GetAbilitySystemComponent())
+			{
+				ProgressASC->AbilityInputTagPressed(InputTag);
+			}
+		}
+	}
+}
+
+void UProgressInputProcessingComponent::Input_AbilityInputTagReleased(FGameplayTag InputTag)
+{
+	if (AProgressCharacter* Character = GetOwner<AProgressCharacter>())
+	{
+		if (AProgressPlayerState* CharacterPS = Character->GetPlayerState<AProgressPlayerState>())
+		{
+			if (UProgressAbilitySystemComponent* ProgressASC = CharacterPS->GetAbilitySystemComponent())
+			{
+				ProgressASC->AbilityInputTagReleased(InputTag);
+			}
+		}
+	}
+}
+```
+
+<br>
+
+At first we add all input mappings in a loop.  
+After that, we need to add bindings to all abilities with the BindAbilityActions function.  
+Binding of a usual movement is done with the BindNativeAction function.  
+
+Full implementation of functions see in the ***ProgressInputProcessingComponent.cpp*** file.
+```
+void UProgressInputProcessingComponent::InitializePlayerInput(UInputComponent* PlayerInputComponent)
+{
+	if (IsValid(InputConfig))
+	{
+		for (const TObjectPtr<UInputMappingContext> Mapping : DefaultInputMappings)
+		{
+			if (UInputMappingContext* IMC = Mapping.Get())
+			{
+					FModifyContextOptions Options = {};
+					Options.bIgnoreAllPressedKeysUntilRelease = false;						
+					Subsystem->AddMappingContext(IMC, Priority, Options);
+			}
+		}
+
+		TObjectPtr<UProgressInputPlayerComponent> ProgressPlayerIC = Cast<UProgressInputPlayerComponent>(PlayerInputComponent);
+		if (IsValid(ProgressPlayerIC))
+		{
+			ProgressPlayerIC->AddInputMappings(InputConfig, Subsystem);
+
+			TArray<uint32> BindHandles;
+			ProgressPlayerIC->BindAbilityActions(InputConfig, this, &ThisClass::Input_AbilityInputTagPressed, &ThisClass::Input_AbilityInputTagReleased, /*out*/ BindHandles);
+
+			ProgressPlayerIC->BindNativeAction(InputConfig, ProgressGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ThisClass::Input_Move, /*bLogIfNotFound=*/ false);
+			ProgressPlayerIC->BindNativeAction(InputConfig, ProgressGameplayTags::InputTag_Look_Mouse, ETriggerEvent::Triggered, this, &ThisClass::Input_Look_Mouse, /*bLogIfNotFound=*/ false);
+		}
+	}
+}
+```
+After implementing the C++ part, we need to create the BP version in the editor.  
+It will be useful for creating character.  
 
 ## Character
+I chose ACharacter for the player because I used the Lyra project architecture, however you can also use APawn, to which you will need to add a UFloatingPawnMovement component.  
+***SetupPlayerInputComponent*** Default character function. It is called once after the input component is initialized.  
+This is done in the ***ProgressCharacter.h*** file. 
+```
+protected:
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+```
+
+<br>
+
+In this function, we call the initialization of bindings our ability and actions from progress input processing component.  
+This is done in the ***ProgressCharacter.cpp*** file. 
+```
+void AProgressCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	if (UProgressInputProcessingComponent* ProgressInputComponent = GetComponentByClass<UProgressInputProcessingComponent>(); IsValid(PlayerInputComponent))
+	{
+		ProgressInputComponent->InitializePlayerInput(PlayerInputComponent);
+	}
+}
+```
 
 ## Player controller
+We need to override the player controller to add the functionality to call the processing of inputs.  
+***PostProcessInput*** The post process function calls the previously created ProcessAbilityInput function from our ASC.  
+***OnUnPossess*** We need to override this function to decouple our inputs from the ASC.  
+This is done in the ***ProgressPlayerController.h*** file. 
+```
+protected:
+	virtual void PostProcessInput(const float DeltaTime, const bool bGamePaused) override;
 
+	virtual void OnUnPossess() override;
+```
+
+<br>
+
+This is done in the ***ProgressPlayerController.cpp*** file. 
+```
+void AProgressPlayerController::PostProcessInput(const float DeltaTime, const bool bGamePaused)
+{
+	if (UProgressAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		ASC->ProcessAbilityInput(DeltaTime, bGamePaused);
+	}
+
+	Super::PostProcessInput(DeltaTime, bGamePaused);
+}
+
+void AProgressPlayerController::OnUnPossess()
+{
+	Super::OnUnPossess();
+
+	if (UProgressAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		ASC->ClearAbilityInput();
+	}
+}
+```
+After implementing the C++ part, we need to create the BP version in the editor.  
+We need to add progress input processing component BP version to our character and set it up.  
+![BP_Character ProgressInputProcessing_settings](https://github.com/HellRoof/Lyra--Ability-activation-by-Enhanced-Input/blob/main/Documentation%20images/BP_Character%20ProgressInputProcessingComponent%20setting%20up.png)
