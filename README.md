@@ -70,7 +70,7 @@ We need to create a structure to store pairs of input actions and input tags.
 After defining the structure, we need to create a data asset to store input configuration settings.  
 Functions ***FindNativeInputActionForTag*** and ***FindAbilityInputActionForTag*** are used for binding inputs and will be needed later.  
 Variables ***NativeInputActions*** and ***AbilityInputActions*** are arrays of the structure we created and must be filled.  
-This is done in the ***UProgressInputConfigData.h*** file.
+This is done in the ***ProgressInputConfigData.h*** file.
 ```
 	UFUNCTION(BlueprintCallable)
 	const UInputAction* FindNativeInputActionForTag(const FGameplayTag& InputTag) const;
@@ -86,12 +86,41 @@ This is done in the ***UProgressInputConfigData.h*** file.
 ```
 <br>
 
+This is done in the ***ProgressInputConfigData.cpp*** file.
+```
+const UInputAction* UProgressInputConfigData::FindNativeInputActionForTag(const FGameplayTag& InputTag) const
+{
+	for (const FProgressInputAction& Action : NativeInputActions)
+	{
+		if (Action.InputAction && (Action.InputTag == InputTag))
+		{
+			return Action.InputAction;
+		}
+	}
+
+	return nullptr;
+}
+
+const UInputAction* UProgressInputConfigData::FindAbilityInputActionForTag(const FGameplayTag& InputTag) const
+{
+	for (const FProgressInputAction& Action : AbilityInputActions)
+	{
+		if (Action.InputAction && (Action.InputTag == InputTag))
+		{
+			return Action.InputAction;
+		}
+	}
+
+	return nullptr;
+}
+```
+
 Before filling the data asset, we need to create an InputAction and configure it.  
 (Example: IA_Move)  
 ![IA_Move](https://github.com/HellRoof/Lyra--Ability-activation-by-Enhanced-Input/blob/main/Documentation%20images/IA_Move.png)  
 
 After implementing the C++ part of the data asset, we need to create it in the editor and fill it.  
-(Example: DA_InputConfig)
+(Example: DA_InputConfig)  
 ![DA_InputConfig](https://github.com/HellRoof/Lyra--Ability-activation-by-Enhanced-Input/blob/main/Documentation%20images/DA_InputConfig.png)
 
 ## Gameplay ability
@@ -226,7 +255,7 @@ void UProgressAbilitySet::AddToAbilitySystem(UProgressAbilitySystemComponent* Pr
 <br>
 
 Once the C++ ability set is defined, we need to create a corresponding data asset in the editor and fill it with abilities and their associated tags.  
-(Example: DA_AbilitySet_Main) 
+(Example: DA_AbilitySet_Main)  
 ![DA_AbilitySetMain](https://github.com/HellRoof/Lyra--Ability-activation-by-Enhanced-Input/blob/main/Documentation%20images/DA_AbilitySet_Main.png)
 
 ## Ability system component
@@ -284,7 +313,7 @@ public:
 <br>
 
 Once the C++ GameMode is overridden, we need to create its BP version in the editor and assign our ability set.
-![GM_AbilitySet](https://github.com/HellRoof/Lyra--Ability-activation-by-Enhanced-Input/blob/main/Documentation%20images/GM%20Ability%20set.png)
+![GM_AbilitySet](https://github.com/HellRoof/Lyra--Ability-activation-by-Enhanced-Input/blob/main/Documentation%20images/BP_GM_AbilitySet.png)
 
 <br>
 
@@ -389,7 +418,7 @@ void UProgressInputPlayerComponent::BindAbilityActions(const UProgressInputConfi
 <br>
 
 Once the C++ ***ProgressInputPlayerComponent*** is created, we need to override the EnhancedInputComponent class in the project settings.  
-![DefaultInputComponentClass](https://github.com/HellRoof/Lyra--Ability-activation-by-Enhanced-Input/blob/main/Documentation%20images/Default%20Input%20component%20class.png)
+![DefaultInputComponentClass](https://github.com/HellRoof/Lyra--Ability-activation-by-Enhanced-Input/blob/main/Documentation%20images/ProjectSettings_DefaultInputComponentClass.png)
 
 ## Input processing component
 The ***ProgressInputProcessingComponent*** is inherited from the Actor Component and serves as the analog of the Hero Component from ***Lyra***.
@@ -489,7 +518,7 @@ void UProgressInputProcessingComponent::InitializePlayerInput(UInputComponent* P
 }
 ```
 After implementing the C++ part, we need to create the BP version in the editor.  
-It will be useful for creating the character.  
+We're gonna need that next.  
 
 ## Character
 I chose ACharacter for the player because I used the ***Lyra*** project architecture. However, you can also use APawn, in which case you will need to add a ***UFloatingPawnMovement*** component.  
